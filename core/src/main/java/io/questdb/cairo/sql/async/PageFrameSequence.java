@@ -413,6 +413,8 @@ public class PageFrameSequence<T extends StatefulAtom> implements Closeable {
      */
     public void prepareForDispatch() {
         if (!readyToDispatch) {
+            io.questdb.griffin.QueryTracer.event("PageFrameSequence.prepareForDispatch",
+                    "build address cache, frames=" + frameCount);
             buildAddressCache();
             readyToDispatch = true;
         }

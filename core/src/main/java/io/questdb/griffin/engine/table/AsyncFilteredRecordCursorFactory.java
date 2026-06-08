@@ -140,6 +140,16 @@ public class AsyncFilteredRecordCursorFactory extends AbstractRecordCursorFactor
 
     @Override
     public RecordCursor getCursor(SqlExecutionContext executionContext) throws SqlException {
+        io.questdb.griffin.QueryTracer.enter("AsyncFilteredRecordCursorFactory.getCursor",
+                "workers=" + executionContext.getSharedQueryWorkerCount());
+        try {
+            return getCursorImpl(executionContext);
+        } finally {
+            io.questdb.griffin.QueryTracer.exit("AsyncFilteredRecordCursorFactory.getCursor");
+        }
+    }
+
+    private RecordCursor getCursorImpl(SqlExecutionContext executionContext) throws SqlException {
         long rowsRemaining;
         int baseOrder = base.getScanDirection() == SCAN_DIRECTION_BACKWARD ? ORDER_DESC : ORDER_ASC;
         final int order;
@@ -269,6 +279,8 @@ public class AsyncFilteredRecordCursorFactory extends AbstractRecordCursorFactor
             @Nullable PageFrameSequence<?> stealingFrameSequence
     ) {
         final long frameRowCount = task.getFrameRowCount();
+        io.questdb.griffin.QueryTracer.event("AsyncFilteredRecordCursorFactory.filter",
+                "worker=" + workerId + " frame=" + task.getFrameIndex() + " rows=" + frameRowCount);
         final AsyncFilterAtom atom = task.getFrameSequence(AsyncFilterAtom.class).getAtom();
 
         final boolean isParquetFrame = task.isParquetFrame();

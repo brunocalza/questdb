@@ -173,6 +173,10 @@ public class PageFrameReduceJob implements Job, QuietCloseable {
             if (cursor > -1) {
                 final PageFrameReduceTask task = queue.get(cursor);
                 final PageFrameSequence<?> frameSequence = task.getFrameSequence();
+                io.questdb.griffin.QueryTracer.event("PageFrameReduceJob.consumeQueue",
+                        "worker=" + workerId + " frame=" + task.getFrameIndex()
+                                + " shard=" + frameSequence.getShard()
+                                + " stealing=" + (stealingFrameSequence != null));
                 try {
                     LOG.debug()
                             .$("reducing [shard=").$(frameSequence.getShard())

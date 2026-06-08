@@ -72,13 +72,19 @@ public class FilteredRecordCursorFactory extends AbstractRecordCursorFactory {
 
     @Override
     public RecordCursor getCursor(SqlExecutionContext executionContext) throws SqlException {
-        RecordCursor cursor = base.getCursor(executionContext);
+        io.questdb.griffin.QueryTracer.enter("FilteredRecordCursorFactory.getCursor",
+                "single-threaded Volcano filter");
         try {
-            this.cursor.of(cursor, executionContext);
-            return this.cursor;
-        } catch (Throwable e) {
-            Misc.free(cursor);
-            throw e;
+            RecordCursor cursor = base.getCursor(executionContext);
+            try {
+                this.cursor.of(cursor, executionContext);
+                return this.cursor;
+            } catch (Throwable e) {
+                Misc.free(cursor);
+                throw e;
+            }
+        } finally {
+            io.questdb.griffin.QueryTracer.exit("FilteredRecordCursorFactory.getCursor");
         }
     }
 

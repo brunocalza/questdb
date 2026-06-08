@@ -339,6 +339,8 @@ public class GroupByRecordCursorFactory extends AbstractRecordCursorFactory {
         }
 
         private void buildDataMap() {
+            io.questdb.griffin.QueryTracer.enter("GroupByRecordCursorFactory.buildDataMap",
+                    "single-threaded Volcano");
             final Record baseRecord = managedCursor.getRecord();
             while (managedCursor.hasNext()) {
                 circuitBreaker.statefulThrowExceptionIfTripped();
@@ -353,6 +355,7 @@ public class GroupByRecordCursorFactory extends AbstractRecordCursorFactory {
             }
             super.of(dataMap.getCursor());
             isDataMapBuilt = true;
+            io.questdb.griffin.QueryTracer.exit("GroupByRecordCursorFactory.buildDataMap");
         }
 
         private void buildMapConditionally() {

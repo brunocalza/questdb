@@ -106,6 +106,9 @@ public class UnorderedPageFrameReduceJob implements Job, QuietCloseable {
                 final UnorderedPageFrameSequence<?> frameSequence = task.getFrameSequence();
                 final int frameIndex = task.getFrameIndex();
                 final long taskSequenceId = task.getFrameSequenceId();
+                io.questdb.griffin.QueryTracer.event("UnorderedPageFrameReduceJob.consumeQueue",
+                        "worker=" + workerId + " frame=" + frameIndex
+                                + " stealing=" + (stealingFrameSequence != null));
                 // Release the queue slot immediately.
                 task.clear();
                 subSeq.done(cursor);

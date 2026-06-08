@@ -211,22 +211,29 @@ public class GroupByRecordCursorFactory extends AbstractRecordCursorFactory {
 
     @Override
     public RecordCursor getCursor(SqlExecutionContext executionContext) throws SqlException {
-        oomCounter.set(0);
-        // clear maps
-        for (int i = 0, n = pRosti.length; i < n; i++) {
-            raf.clear(pRosti[i]);
+        io.questdb.griffin.QueryTracer.enter("vect.GroupByRecordCursorFactory.getCursor",
+                "vectorized parallel aggregate, aggregates=" + vafList.size()
+                        + " shards=" + pRosti.length);
+        try {
+            oomCounter.set(0);
+            // clear maps
+            for (int i = 0, n = pRosti.length; i < n; i++) {
+                raf.clear(pRosti[i]);
+            }
+            // clear state of aggregate functions
+            for (int i = 0, n = vafList.size(); i < n; i++) {
+                vafList.getQuick(i).clear();
+            }
+            final PageFrameCursor pageFrameCursor = base.getPageFrameCursor(executionContext, ORDER_ASC);
+            return cursor.of(
+                    base.getMetadata(),
+                    pageFrameCursor,
+                    executionContext.getMessageBus(),
+                    executionContext.getCircuitBreaker()
+            );
+        } finally {
+            io.questdb.griffin.QueryTracer.exit("vect.GroupByRecordCursorFactory.getCursor");
         }
-        // clear state of aggregate functions
-        for (int i = 0, n = vafList.size(); i < n; i++) {
-            vafList.getQuick(i).clear();
-        }
-        final PageFrameCursor pageFrameCursor = base.getPageFrameCursor(executionContext, ORDER_ASC);
-        return cursor.of(
-                base.getMetadata(),
-                pageFrameCursor,
-                executionContext.getMessageBus(),
-                executionContext.getCircuitBreaker()
-        );
     }
 
     @Override
@@ -313,6 +320,9 @@ public class GroupByRecordCursorFactory extends AbstractRecordCursorFactory {
                 long cursor = subSeq.next();
                 if (cursor > -1) {
                     VectorAggregateTask task = queue.get(cursor);
+                    io.questdb.griffin.QueryTracer.event("vect.GroupByRecordCursorFactory.runWhatsLeft",
+                            "dispatcher (workerId=" + workerId + ") drained queue cursor="
+                                    + cursor + " after dispatch finished");
                     task.entry.run(workerId, subSeq, cursor);
                     reclaimed++;
                 } else {
@@ -523,6 +533,10 @@ public class GroupByRecordCursorFactory extends AbstractRecordCursorFactory {
                     frameAddressCache.add(frameCount++, frame);
                 }
 
+                io.questdb.griffin.QueryTracer.event("vect.GroupByRecordCursorFactory.buildMaps",
+                        "frames=" + frameCount + " aggregates=" + vafCount
+                                + " => total tasks dispatched=" + (frameCount * vafCount));
+
                 for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
                     final long frameRowCount = frameAddressCache.getFrameSize(frameIndex);
                     for (int vafIndex = 0; vafIndex < vafCount; vafIndex++) {
@@ -537,6 +551,10 @@ public class GroupByRecordCursorFactory extends AbstractRecordCursorFactory {
                                 circuitBreaker.statefulThrowExceptionIfTrippedNoThrottle();
 
                                 if (workStealingStrategy.shouldSteal(mergedCount)) {
+                                    io.questdb.griffin.QueryTracer.event("vect.GroupByRecordCursorFactory.workSteal",
+                                            "dispatcher (workerId=" + workerId + ") took (frame="
+                                                    + frameIndex + ", vaf=" + vafIndex
+                                                    + ") inline because queue was full");
                                     VectorAggregateEntry.aggregateUnsafe(
                                             workerId,
                                             oomCounter,
@@ -645,6 +663,10 @@ public class GroupByRecordCursorFactory extends AbstractRecordCursorFactory {
                             if (pRostiBig == pRosti[i] || raf.getSize(pRosti[i]) < 1) {
                                 continue;
                             }
+                            io.questdb.griffin.QueryTracer.event("vect.GroupByRecordCursorFactory.merge",
+                                    "vaf=" + j + " fold pRosti[" + i + "] (size="
+                                            + raf.getSize(pRosti[i]) + ") into pRostiBig (size="
+                                            + raf.getSize(pRostiBig) + ") via native kernel");
                             circuitBreaker.statefulThrowExceptionIfTrippedNoThrottle();
                             long oldSize = Rosti.getAllocMemory(pRostiBig);
                             if (!vaf.merge(pRostiBig, pRosti[i])) {

@@ -60,13 +60,18 @@ public class LimitRecordCursorFactory extends AbstractRecordCursorFactory {
 
     @Override
     public RecordCursor getCursor(SqlExecutionContext executionContext) throws SqlException {
-        final RecordCursor baseCursor = base.getCursor(executionContext);
+        io.questdb.griffin.QueryTracer.enter("LimitRecordCursorFactory.getCursor");
         try {
-            cursor.of(baseCursor, executionContext);
-            return cursor;
-        } catch (Throwable th) {
-            cursor.close();
-            throw th;
+            final RecordCursor baseCursor = base.getCursor(executionContext);
+            try {
+                cursor.of(baseCursor, executionContext);
+                return cursor;
+            } catch (Throwable th) {
+                cursor.close();
+                throw th;
+            }
+        } finally {
+            io.questdb.griffin.QueryTracer.exit("LimitRecordCursorFactory.getCursor");
         }
     }
 
@@ -208,12 +213,18 @@ public class LimitRecordCursorFactory extends AbstractRecordCursorFactory {
         public boolean hasNext() {
             ensureReadyToConsume();
             if (remaining <= 0) {
+                io.questdb.griffin.QueryTracer.event("LimitRecordCursor.hasNext",
+                        "LIMIT cutoff reached, returning false (no further pull from base)");
                 return false;
             }
             if (base.hasNext()) {
                 remaining--;
+                io.questdb.griffin.QueryTracer.event("LimitRecordCursor.hasNext",
+                        "delivered row, remaining=" + remaining);
                 return true;
             }
+            io.questdb.griffin.QueryTracer.event("LimitRecordCursor.hasNext",
+                    "base exhausted before LIMIT, remaining=" + remaining);
             return false;
         }
 

@@ -69,6 +69,8 @@ public class SumDoubleGroupByFunction extends DoubleFunction implements GroupByF
     public void computeFirst(MapValue mapValue, Record record, long rowId) {
         final double value = arg.getDouble(record);
         mapValue.putDouble(valueIndex, value);
+        io.questdb.griffin.QueryTracer.event("SumDoubleGroupByFunction.computeFirst",
+                "new group, seedValue=" + value);
     }
 
     @Override

@@ -102,16 +102,21 @@ public class HashJoinRecordCursorFactory extends AbstractJoinRecordCursorFactory
 
     @Override
     public RecordCursor getCursor(SqlExecutionContext executionContext) throws SqlException {
-        RecordCursor slaveCursor = slaveFactory.getCursor(executionContext);
-        RecordCursor masterCursor = null;
+        io.questdb.griffin.QueryTracer.enter("HashJoinRecordCursorFactory.getCursor");
         try {
-            masterCursor = masterFactory.getCursor(executionContext);
-            cursor.of(masterCursor, slaveCursor, executionContext.getCircuitBreaker());
-            return cursor;
-        } catch (Throwable e) {
-            Misc.free(slaveCursor);
-            Misc.free(masterCursor);
-            throw e;
+            RecordCursor slaveCursor = slaveFactory.getCursor(executionContext);
+            RecordCursor masterCursor = null;
+            try {
+                masterCursor = masterFactory.getCursor(executionContext);
+                cursor.of(masterCursor, slaveCursor, executionContext.getCircuitBreaker());
+                return cursor;
+            } catch (Throwable e) {
+                Misc.free(slaveCursor);
+                Misc.free(masterCursor);
+                throw e;
+            }
+        } finally {
+            io.questdb.griffin.QueryTracer.exit("HashJoinRecordCursorFactory.getCursor");
         }
     }
 
@@ -255,9 +260,12 @@ public class HashJoinRecordCursorFactory extends AbstractJoinRecordCursorFactory
 
         private void buildMapOfSlaveRecords() {
             if (!isMapBuilt) {
+                io.questdb.griffin.QueryTracer.enter("HashJoinRecordCursor.buildMapOfSlaveRecords",
+                        "BUILD phase: drain slave into hash map");
                 final Record keyRecord = symbolTranslatingRecord != null ? symbolTranslatingRecord : slaveCursor.getRecord();
                 populateRecordHashMap(circuitBreaker, slaveCursor, joinKeyMap, slaveKeySink, slaveChain, keyRecord);
                 isMapBuilt = true;
+                io.questdb.griffin.QueryTracer.exit("HashJoinRecordCursor.buildMapOfSlaveRecords");
             }
         }
 

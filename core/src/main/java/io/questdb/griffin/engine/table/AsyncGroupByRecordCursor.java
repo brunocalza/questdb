@@ -190,6 +190,7 @@ class AsyncGroupByRecordCursor implements RecordCursor {
     }
 
     private void buildMap() {
+        io.questdb.griffin.QueryTracer.enter("AsyncGroupByRecordCursor.buildMap");
         frameSequence.prepareForDispatch();
         frameSequence.getAtom().getFilterContext().initMemoryPools(frameSequence.getPageFrameAddressCache());
         frameSequence.dispatchAndAwait();
@@ -197,6 +198,8 @@ class AsyncGroupByRecordCursor implements RecordCursor {
         final AsyncGroupByAtom atom = frameSequence.getAtom();
 
         final GroupByShardingContext shardingCtx = atom.getShardingContext();
+        io.questdb.griffin.QueryTracer.event("AsyncGroupByRecordCursor.buildMap",
+                "merge sharded=" + atom.isSharded());
         if (!atom.isSharded()) {
             // No sharding was necessary, so the maps are small, and we merge them ourselves.
             ownerMap = shardingCtx.mergeOwnerMap();
@@ -224,6 +227,7 @@ class AsyncGroupByRecordCursor implements RecordCursor {
         recordA.of(mapCursor.getRecord());
         recordB.of(mapCursor.getRecordB());
         isDataMapBuilt = true;
+        io.questdb.griffin.QueryTracer.exit("AsyncGroupByRecordCursor.buildMap");
     }
 
     private void parallelLongTopK(DirectLongLongSortedList destList, Function longFunc) {

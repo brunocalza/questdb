@@ -39,6 +39,8 @@ public class GroupByVectorAggregateJob extends AbstractQueueConsumerJob<VectorAg
 
     @Override
     protected boolean doRun(int workerId, long cursor, RunStatus runStatus) {
+        io.questdb.griffin.QueryTracer.event("GroupByVectorAggregateJob.doRun",
+                "worker=" + workerId + " cursor=" + cursor + " (executes Vect.sumDouble etc on a page-frame column)");
         final VectorAggregateEntry entry = queue.get(cursor).entry;
         try {
             entry.run(workerId, subSeq, cursor);

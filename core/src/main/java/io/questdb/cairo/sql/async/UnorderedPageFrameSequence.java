@@ -181,86 +181,12 @@ public class UnorderedPageFrameSequence<T extends StatefulAtom> implements Close
      * @throws CairoException if a worker encountered an error
      */
     public void dispatchAndAwait() {
-        if (frameCount == 0) {
-            return;
-        }
-
-        // Initialize the circuit breaker for work stealing and local reduces.
-        workStealCircuitBreaker.init(sqlExecutionContext.getCircuitBreaker());
-
-        int queued = 0;
-        int localCount = 0;
-
-        // Phase 1: Dispatch all frames.
-        // The try/finally ensures queuedCount is set even if reduceLocally() throws,
-        // so that await() in close() properly drains in-flight tasks.
+        io.questdb.griffin.QueryTracer.enter("UnorderedPageFrameSequence.dispatchAndAwait",
+                "frames=" + frameCount);
         try {
-            for (int i = 0; i < frameCount; i++) {
-                while (true) {
-                    long cursor = reducePubSeq.next();
-                    if (cursor > -1) {
-                        reduceQueue.get(cursor).of(this, i);
-                        reducePubSeq.done(cursor);
-                        queued++;
-                        break;
-                    } else if (cursor == -1) {
-                        // Queue full.
-                        if (workStealingStrategy.shouldSteal(localCount)) {
-                            stealWork();
-                            workStealCircuitBreaker.init(sqlExecutionContext.getCircuitBreaker());
-                            continue;
-                        }
-                        // Reduce locally as fallback.
-                        reduceLocally(i);
-                        localCount++;
-                        break;
-                    } else {
-                        Os.pause();
-                    }
-                }
-            }
+            dispatchAndAwaitImpl();
         } finally {
-            this.queuedCount = queued;
-        }
-
-        // Phase 2: Wait for all queued frames to complete.
-        while (!doneLatch.done(queued)) {
-            if (!isActive()) {
-                break;
-            }
-            if (!isUninterruptible) {
-                workStealCircuitBreaker.statefulThrowExceptionIfTrippedNoThrottle();
-            }
-            stealWork();
-            workStealCircuitBreaker.init(sqlExecutionContext.getCircuitBreaker());
-            Os.pause();
-        }
-
-        // If we exited early due to cancellation, still wait for in-flight tasks
-        // to complete to avoid data races with setError().
-        while (!doneLatch.done(queued)) {
-            stealWork();
-            workStealCircuitBreaker.init(sqlExecutionContext.getCircuitBreaker());
-            Os.pause();
-        }
-
-        // Phase 3: Check for errors.
-        if (hasError()) {
-            if (isOutOfMemory) {
-                throw CairoException.nonCritical().setOutOfMemory(true).put(errorMsg);
-            }
-            if (isCancelled) {
-                throw CairoException.queryCancelled();
-            }
-            throw buildError();
-        }
-
-        if (!isActive()) {
-            if (cancelReason.get() == SqlExecutionCircuitBreaker.STATE_CANCELLED) {
-                throw CairoException.queryCancelled();
-            } else {
-                throw CairoException.queryTimedOut();
-            }
+            io.questdb.griffin.QueryTracer.exit("UnorderedPageFrameSequence.dispatchAndAwait");
         }
     }
 
@@ -426,6 +352,90 @@ public class UnorderedPageFrameSequence<T extends StatefulAtom> implements Close
         while ((frame = frameCursor.next()) != null) {
             frameRowCounts.add(frame.getPartitionHi() - frame.getPartitionLo());
             frameAddressCache.add(frameCount++, frame);
+        }
+    }
+
+    private void dispatchAndAwaitImpl() {
+        if (frameCount == 0) {
+            return;
+        }
+
+        // Initialize the circuit breaker for work stealing and local reduces.
+        workStealCircuitBreaker.init(sqlExecutionContext.getCircuitBreaker());
+
+        int queued = 0;
+        int localCount = 0;
+
+        // Phase 1: Dispatch all frames.
+        // The try/finally ensures queuedCount is set even if reduceLocally() throws,
+        // so that await() in close() properly drains in-flight tasks.
+        try {
+            for (int i = 0; i < frameCount; i++) {
+                while (true) {
+                    long cursor = reducePubSeq.next();
+                    if (cursor > -1) {
+                        reduceQueue.get(cursor).of(this, i);
+                        reducePubSeq.done(cursor);
+                        queued++;
+                        break;
+                    } else if (cursor == -1) {
+                        // Queue full.
+                        if (workStealingStrategy.shouldSteal(localCount)) {
+                            stealWork();
+                            workStealCircuitBreaker.init(sqlExecutionContext.getCircuitBreaker());
+                            continue;
+                        }
+                        // Reduce locally as fallback.
+                        reduceLocally(i);
+                        localCount++;
+                        break;
+                    } else {
+                        Os.pause();
+                    }
+                }
+            }
+        } finally {
+            this.queuedCount = queued;
+        }
+
+        // Phase 2: Wait for all queued frames to complete.
+        while (!doneLatch.done(queued)) {
+            if (!isActive()) {
+                break;
+            }
+            if (!isUninterruptible) {
+                workStealCircuitBreaker.statefulThrowExceptionIfTrippedNoThrottle();
+            }
+            stealWork();
+            workStealCircuitBreaker.init(sqlExecutionContext.getCircuitBreaker());
+            Os.pause();
+        }
+
+        // If we exited early due to cancellation, still wait for in-flight tasks
+        // to complete to avoid data races with setError().
+        while (!doneLatch.done(queued)) {
+            stealWork();
+            workStealCircuitBreaker.init(sqlExecutionContext.getCircuitBreaker());
+            Os.pause();
+        }
+
+        // Phase 3: Check for errors.
+        if (hasError()) {
+            if (isOutOfMemory) {
+                throw CairoException.nonCritical().setOutOfMemory(true).put(errorMsg);
+            }
+            if (isCancelled) {
+                throw CairoException.queryCancelled();
+            }
+            throw buildError();
+        }
+
+        if (!isActive()) {
+            if (cancelReason.get() == SqlExecutionCircuitBreaker.STATE_CANCELLED) {
+                throw CairoException.queryCancelled();
+            } else {
+                throw CairoException.queryTimedOut();
+            }
         }
     }
 

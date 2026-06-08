@@ -183,6 +183,10 @@ public class GroupByShardingContext implements QuietCloseable, Mutable {
         // Now do the actual merge.
         for (int i = 0; i < perWorkerMapCount; i++) {
             final Map srcMap = perWorkerFragments.getQuick(i).getMap();
+            io.questdb.griffin.QueryTracer.event("GroupByShardingContext.mergeOwnerMap",
+                    "fold worker[" + i + "].map (size=" + srcMap.size()
+                            + ") into destMap (size=" + destMap.size()
+                            + ") via per-key Java callbacks");
             destMap.merge(srcMap, functionUpdater);
             srcMap.close();
         }
@@ -237,10 +241,16 @@ public class GroupByShardingContext implements QuietCloseable, Mutable {
         for (int i = 0; i < perWorkerMapCount; i++) {
             final GroupByMapFragment srcFragment = perWorkerFragments.getQuick(i);
             final Map srcMap = srcFragment.getShards().getQuick(shardIndex);
+            io.questdb.griffin.QueryTracer.event("GroupByShardingContext.mergeShard",
+                    "shard=" + shardIndex + " fold worker[" + i + "].shard (size="
+                            + srcMap.size() + ") into destMap (size=" + destMap.size() + ")");
             destMap.merge(srcMap, functionUpdater);
             srcMap.close();
         }
         // Merge shard from the owner fragment.
+        io.questdb.griffin.QueryTracer.event("GroupByShardingContext.mergeShard",
+                "shard=" + shardIndex + " fold owner shard (size=" + srcOwnerMap.size()
+                        + ") into destMap (size=" + destMap.size() + ")");
         destMap.merge(srcOwnerMap, functionUpdater);
         srcOwnerMap.close();
 

@@ -153,10 +153,16 @@ public class AsyncGroupByRecordCursorFactory extends AbstractRecordCursorFactory
 
     @Override
     public RecordCursor getCursor(SqlExecutionContext executionContext) throws SqlException {
-        final int order = base.getScanDirection() == SCAN_DIRECTION_BACKWARD ? ORDER_DESC : ORDER_ASC;
-        frameSequence.of(base, executionContext, order);
-        cursor.of(frameSequence, executionContext);
-        return cursor;
+        io.questdb.griffin.QueryTracer.enter("AsyncGroupByRecordCursorFactory.getCursor",
+                "workers=" + executionContext.getSharedQueryWorkerCount());
+        try {
+            final int order = base.getScanDirection() == SCAN_DIRECTION_BACKWARD ? ORDER_DESC : ORDER_ASC;
+            frameSequence.of(base, executionContext, order);
+            cursor.of(frameSequence, executionContext);
+            return cursor;
+        } finally {
+            io.questdb.griffin.QueryTracer.exit("AsyncGroupByRecordCursorFactory.getCursor");
+        }
     }
 
     @Override
@@ -231,6 +237,8 @@ public class AsyncGroupByRecordCursorFactory extends AbstractRecordCursorFactory
             @Nullable UnorderedPageFrameSequence<?> stealingFrameSequence
     ) {
         final long frameRowCount = frameSequence.getFrameRowCount(frameIndex);
+        io.questdb.griffin.QueryTracer.event("AsyncGroupByRecordCursorFactory.aggregate",
+                "worker=" + workerId + " frame=" + frameIndex + " rows=" + frameRowCount);
         assert frameRowCount > 0;
         @SuppressWarnings("unchecked") final AsyncGroupByAtom atom = ((UnorderedPageFrameSequence<AsyncGroupByAtom>) frameSequence).getAtom();
 
@@ -474,6 +482,9 @@ public class AsyncGroupByRecordCursorFactory extends AbstractRecordCursorFactory
     ) {
         @SuppressWarnings("unchecked") final AsyncGroupByAtom atom = ((UnorderedPageFrameSequence<AsyncGroupByAtom>) frameSequence).getAtom();
         final long frameRowCount = frameSequence.getFrameRowCount(frameIndex);
+        io.questdb.griffin.QueryTracer.event("AsyncGroupByRecordCursorFactory.filterAndAggregate",
+                "worker=" + workerId + " frame=" + frameIndex + " rows=" + frameRowCount
+                        + " (stolen filter fused with aggregate)");
         assert frameRowCount > 0;
 
         final boolean owner = stealingFrameSequence == frameSequence;

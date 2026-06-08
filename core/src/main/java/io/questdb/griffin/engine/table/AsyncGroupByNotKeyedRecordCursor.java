@@ -130,6 +130,8 @@ class AsyncGroupByNotKeyedRecordCursor implements NoRandomAccessRecordCursor {
     }
 
     private void buildValue() {
+        io.questdb.griffin.QueryTracer.enter("AsyncGroupByNotKeyedRecordCursor.buildValue",
+                "non-keyed parallel aggregate");
         frameSequence.prepareForDispatch();
         frameSequence.getAtom().getFilterContext().initMemoryPools(frameSequence.getPageFrameAddressCache());
         frameSequence.dispatchAndAwait();
@@ -153,6 +155,7 @@ class AsyncGroupByNotKeyedRecordCursor implements NoRandomAccessRecordCursor {
         }
 
         isValueBuilt = true;
+        io.questdb.griffin.QueryTracer.exit("AsyncGroupByNotKeyedRecordCursor.buildValue");
     }
 
     void of(UnorderedPageFrameSequence<AsyncGroupByNotKeyedAtom> frameSequence, SqlExecutionContext executionContext) throws SqlException {

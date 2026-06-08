@@ -85,8 +85,14 @@ public class SumDoubleVectorAggregateFunction extends DoubleFunction implements 
         if (valueAddress == 0) {
             // no values? no problem :)
             // create list of distinct key values so that we can show NULL against them
+            io.questdb.griffin.QueryTracer.event("SumDoubleVectorAggregateFunction.aggregate",
+                    "native keyedInt*Distinct kernel processing " + frameRowCount
+                            + " key rows (no value column)");
             return distinctFunc.run(pRosti, keyAddress, frameRowCount);
         } else {
+            io.questdb.griffin.QueryTracer.event("SumDoubleVectorAggregateFunction.aggregate",
+                    "native keyedIntSumDouble kernel processing " + frameRowCount
+                            + " rows (one SIMD-friendly C++ loop over key + value columns)");
             return keyValueFunc.run(pRosti, keyAddress, valueAddress, frameRowCount, valueOffset);
         }
     }

@@ -187,10 +187,16 @@ public class AsyncGroupByNotKeyedRecordCursorFactory extends AbstractRecordCurso
 
     @Override
     public RecordCursor getCursor(SqlExecutionContext executionContext) throws SqlException {
-        final int order = base.getScanDirection() == SCAN_DIRECTION_BACKWARD ? ORDER_DESC : ORDER_ASC;
-        frameSequence.of(base, executionContext, order);
-        cursor.of(frameSequence, executionContext);
-        return cursor;
+        io.questdb.griffin.QueryTracer.enter("AsyncGroupByNotKeyedRecordCursorFactory.getCursor",
+                "workers=" + executionContext.getSharedQueryWorkerCount());
+        try {
+            final int order = base.getScanDirection() == SCAN_DIRECTION_BACKWARD ? ORDER_DESC : ORDER_ASC;
+            frameSequence.of(base, executionContext, order);
+            cursor.of(frameSequence, executionContext);
+            return cursor;
+        } finally {
+            io.questdb.griffin.QueryTracer.exit("AsyncGroupByNotKeyedRecordCursorFactory.getCursor");
+        }
     }
 
     @Override
